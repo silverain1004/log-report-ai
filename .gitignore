@@ -1,0 +1,12 @@
+config.json
+venv/
+__pycache__/
+*.pyc
+build/
+dist/
+reports/
+logs/
+*.zip
+*.ppk
+*.pem
+.pytest_cache/

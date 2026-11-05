@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>로그 대신 읽어드림 — 데모</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1d2330;--muted:#5f6b7a;--border:#e2e6ec;--accent:#2f6fde;--accent-soft:#e8f0fd;--warn:#d68910;--ok:#1e8e5a}
+@media (prefers-color-scheme:dark){:root{--bg:#12151b;--card:#1b2029;--text:#e7ebf1;--muted:#9aa5b4;--border:#2b323e;--accent:#6b9dff;--accent-soft:#1d2a42;--warn:#f0b04a;--ok:#4cc38a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",Arial,sans-serif;line-height:1.6}
+.wrap{max-width:980px;margin:0 auto;padding:40px 16px 64px}
+h1{font-size:30px;margin:0 0 8px;letter-spacing:-.5px}
+h2{font-size:20px;margin:40px 0 12px}
+p{margin:0 0 10px}
+.lead{font-size:17px;color:var(--muted)}
+.notice{background:var(--accent-soft);border-left:4px solid var(--accent);padding:10px 14px;border-radius:4px;font-size:14px;margin:18px 0}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px}
+.card .k{font-size:13px;color:var(--muted)}
+.card .v{font-size:18px;font-weight:700;margin-top:2px}
+.step{display:flex;gap:10px;align-items:flex-start}
+.num{flex:0 0 26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.ba{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:640px){.ba{grid-template-columns:1fr}}
+.ba .card h3{margin:0 0 6px;font-size:15px}
+.ba ul{margin:0;padding-left:18px;font-size:14px}
+.tabs{display:flex;gap:6px;margin-bottom:-1px;flex-wrap:wrap}
+.tab{border:1px solid var(--border);background:var(--bg);color:var(--text);padding:8px 14px;border-radius:8px 8px 0 0;cursor:pointer;font-size:14px}
+.tab[aria-selected=true]{background:var(--card);border-bottom-color:var(--card);font-weight:700}
+.frame{background:var(--card);border:1px solid var(--border);border-radius:0 10px 10px 10px;padding:8px}
+iframe{width:100%;height:720px;border:0;border-radius:6px;background:#fff}
+.links{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.links a{display:inline-block;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--accent);text-decoration:none;font-size:14px}
+.links a:hover{border-color:var(--accent)}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted);margin-left:6px;vertical-align:middle}
+.badge.live{color:var(--ok);border-color:var(--ok)}
+code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:13px}
+pre{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-size:13px}
+footer{margin-top:48px;font-size:13px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>로그 대신 읽어드림</h1>
+<p class="lead">매주 월요일, 서버 5대의 로그 7종을 사람이 직접 열어보던 점검을 <b>메일 한 통</b>으로 바꿨습니다.
+수집·분류·리포트는 스크립트가, “그래서 이번 주 괜찮아?”라는 판단은 Claude가 첫 줄에 써 줍니다.</p>
+
+<div class="notice">이 페이지의 리포트는 <b>합성(가짜) 로그</b>로 만든 데모입니다. 실서버 로그는 한 줄도 포함되어 있지 않고,
+분석·리포트 코드는 운영 중인 코드를 그대로 사용했습니다. (<code>demo/generate_demo.py</code>)</div>
+
+<div class="grid">
+  <div class="card"><div class="k">운영 대상</div><div class="v">Windows 1대 · Linux 4대</div></div>
+  <div class="card"><div class="k">분석 로그</div><div class="v">Nginx · Tomcat 3종 · L4 편차</div></div>
+  <div class="card"><div class="k">실행</div><div class="v">작업 스케줄러 · cron (주간/월간)</div></div>
+  <div class="card"><div class="k">AI</div><div class="v">Claude API 요약 (Python 3.6, SDK 없이)</div></div>
+</div>
+
+<h2>Before / After</h2>
+<div class="ba">
+  <div class="card"><h3>Before — 사람이 직접</h3><ul>
+    <li>Windows 서버 원격 접속 → Nginx·Tomcat 로그 폴더 열기</li>
+    <li>Linux WEB 2대·WAS 2대 SSH 접속 → grep으로 에러 찾기</li>
+    <li>스캐너 404 수백 건 사이에서 진짜 장애 골라내기</li>
+    <li>WEB1/WEB2 트래픽 편차는 계산기로</li>
+  </ul></div>
+  <div class="card"><h3>After — 월요일 아침 메일 한 통</h3><ul>
+    <li>스케줄러가 직전 주 로그를 자동 수집·집계</li>
+    <li>스캔 시그니처(FortiOS·WordPress·정찰성)는 자동으로 소음 처리</li>
+    <li>맨 위에 Claude 요약: <b>정상 / 주의 / 위험</b> + 확인할 것 2~4줄</li>
+    <li>사람은 “주의·위험”일 때만 상세 리포트를 열면 됨</li>
+  </ul></div>
+</div>
+
+<h2>실제 메일 미리보기 <span class="badge" id="ai-badge">AI 요약: 확인 중</span></h2>
+<p style="font-size:14px;color:var(--muted)">데모 시나리오: 10/29(목) 14시, 주문 API의 DB 커넥션 풀이 고갈되어 500 오류가 몰린 한 주. 스캐너 소음 속에서 이걸 찾아내는지 보세요.</p>
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-src="email/windows.html">Windows 메일</button>
+  <button class="tab" role="tab" aria-selected="false" data-src="email/linux.html">Linux 메일</button>
+</div>
+<div class="frame"><iframe id="mail" src="email/windows.html" title="메일 미리보기"></iframe></div>
+
+<div class="links">
+  <a href="reports/index_2026W44.html">Windows 상세 리포트 목차</a>
+  <a href="reports/Report_NGINX_2026W44.html">NGINX</a>
+  <a href="reports/Report_TOMCAT_EOUT_2026W44.html">TOMCAT_EOUT</a>
+  <a href="reports/Report_TOMCAT_INOUT_2026W44.html">TOMCAT_INOUT</a>
+  <a href="reports/Report_EBIZ_2026W44.html">Linux 통합 리포트 (L4·노드별)</a>
+</div>
+
+<h2>어떻게 동작하나</h2>
+<div class="grid">
+  <div class="card step"><div class="num">1</div><div><b>수집</b><br><span style="font-size:14px;color:var(--muted)">Windows는 로컬 폴더, Linux는 WEB1에서 SSH로 나머지 3대의 로그를 zgrep</span></div></div>
+  <div class="card step"><div class="num">2</div><div><b>분류</b><br><span style="font-size:14px;color:var(--muted)">키워드·상태코드 집계, 알려진 스캔 시그니처와 refresh-token 401은 소음으로 분리</span></div></div>
+  <div class="card step"><div class="num">3</div><div><b>AI 요약</b><br><span style="font-size:14px;color:var(--muted)">집계 수치 + 마스킹한 샘플 최대 15줄만 Claude에 보내 종합 판단과 조치 권고를 받음</span></div></div>
+  <div class="card step"><div class="num">4</div><div><b>발송</b><br><span style="font-size:14px;color:var(--muted)">HTML 메일 본문 + 상세 리포트 ZIP 첨부</span></div></div>
+</div>
+
+<h2>AI를 안전하게 붙인 방법</h2>
+<div class="grid">
+  <div class="card"><b>원문 로그를 보내지 않음</b><p style="font-size:14px;color:var(--muted);margin:4px 0 0">집계 수치와 ‘미분류’ 샘플 일부만 전송</p></div>
+  <div class="card"><b>마스킹</b><p style="font-size:14px;color:var(--muted);margin:4px 0 0">IP 뒤 두 자리(10.20.x.x)와 이메일을 가린 뒤 전송</p></div>
+  <div class="card"><b>실패해도 메일은 나감</b><p style="font-size:14px;color:var(--muted);margin:4px 0 0">키 없음·네트워크 차단·API 오류 시 AI 박스만 빠지고 기존 리포트 그대로</p></div>
+  <div class="card"><b>비용</b><p style="font-size:14px;color:var(--muted);margin:4px 0 0">Claude Haiku 기준 1회 약 7원, 월 100원 미만</p></div>
+</div>
+
+<h2>직접 돌려보기</h2>
+<pre>git clone &lt;이 저장소&gt; &amp;&amp; cd log-manager
+python demo/generate_demo.py                     # docs/ 에 데모 리포트 생성
+ANTHROPIC_API_KEY=sk-ant-... python demo/generate_demo.py --refresh-ai   # Claude로 요약 새로 받기
+python -m pytest tests                           # 테스트</pre>
+
+<footer>AIVE Challenge 2026 하반기 출품작 · 샘플 IP는 문서용 대역(RFC 5737)과 사설 대역만 사용</footer>
+</div>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('.tab'), frame=document.getElementById('mail');
+  tabs.forEach(function(t){t.addEventListener('click',function(){
+    tabs.forEach(function(x){x.setAttribute('aria-selected','false')});
+    t.setAttribute('aria-selected','true'); frame.src=t.getAttribute('data-src');
+  });});
+  var badge=document.getElementById('ai-badge');
+  fetch('demo_meta.json').then(function(r){return r.json()}).then(function(m){
+    var s=m.ai_source||{}, live=s.windows==='claude'&&s.linux==='claude';
+    badge.textContent=live?'AI 요약: Claude 실제 생성':'AI 요약: 예시 문구';
+    if(live) badge.classList.add('live');
+  }).catch(function(){badge.textContent='AI 요약';});
+})();
+</script>
+</body>
+</html>
