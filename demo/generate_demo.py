@@ -2,7 +2,7 @@
 
 실서버 로그 대신 '가짜(합성) 로그'를 만들어서, 운영 중인 분석 코드
 (win_analyzer / linux_analyzer / report_builder / ai_summary)를 그대로 돌린다.
-결과물은 docs/ 아래에 정적 HTML로 떨어지고, GitHub Pages가 그대로 서빙한다.
+결과물은 docs/demo/ 아래에 정적 HTML로 떨어지고, GitHub Pages가 그대로 서빙한다.
 
     python demo/generate_demo.py              # 저장된 AI 요약(캐시) 사용
     ANTHROPIC_API_KEY=sk-... python demo/generate_demo.py --refresh-ai   # Claude로 새로 요약
@@ -29,7 +29,7 @@ from report_builder import build_linux_email_html, build_win_email_html  # noqa:
 
 DEMO_DIR = os.path.join(ROOT, "demo")
 SAMPLE_DIR = os.path.join(DEMO_DIR, "sample_logs")
-DOCS_DIR = os.path.join(ROOT, "docs")
+DOCS_DIR = os.path.join(ROOT, "docs", "demo")
 CACHE_PATH = os.path.join(DEMO_DIR, "ai_summary_cache.json")
 
 PERIOD = resolve_auto_period("weekly", date(2026, 11, 2))  # 2026-W44 (10/26 ~ 11/01)
@@ -297,9 +297,29 @@ def main():
     lin_summary = ["- [AI] " + ln for ln in lin_ai] + [""] + lin["summary_lines"]
     _save(os.path.join(email_dir, "linux.html"), build_linux_email_html(PERIOD["label"], report_data, lin_summary, lin_ai))
 
-    meta = {"period_label": PERIOD["label"], "period_key": PERIOD["key"], "ai_source": {"windows": win_src, "linux": lin_src}}
-    _save(os.path.join(DOCS_DIR, "demo_meta.json"), json.dumps(meta, ensure_ascii=False, indent=2))
-    print("\n[데모] docs/ 생성 완료 — AI 요약 출처:", meta["ai_source"])
+    key = PERIOD["key"]
+    manifest = {
+        "source": "demo",
+        "label": "데모 (합성 로그)",
+        "period_label": PERIOD["label"],
+        "period_key": key,
+        "ai_source": {"windows": win_src, "linux": lin_src},
+        "windows": {
+            "title": "E-OUT, IN-OUT 시스템 통합 로그 리포트 (Windows)",
+            "email": "email/windows.html",
+            "zip": "Report_WIN_%s.zip" % key,
+            "reports": [{"title": "Windows 목차", "href": "reports/index_%s.html" % key}] + [
+                {"title": name, "href": "reports/Report_%s_%s.html" % (name, key)} for name, _ in systems],
+        },
+        "linux": {
+            "title": "E-BIZ 시스템 통합 로그 리포트 (Linux)",
+            "email": "email/linux.html",
+            "zip": "Report_EBIZ_%s.zip" % key,
+            "reports": [{"title": "Linux 통합 (L4·노드별)", "href": "reports/Report_EBIZ_%s.html" % key}],
+        },
+    }
+    _save(os.path.join(DOCS_DIR, "manifest.json"), json.dumps(manifest, ensure_ascii=False, indent=2))
+    print("\n[데모] docs/demo/ 생성 완료 — AI 요약 출처:", manifest["ai_source"])
 
 
 def _save(path, text):

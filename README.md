@@ -18,7 +18,9 @@ Windows(Nginx + Tomcat 2종)와 Linux 이중화(WEB 2대 + WAS 2대) 환경에�
 | `ai_summary.py` | Claude Messages API 호출 — SDK 없이 `urllib`만 사용 (서버가 Python 3.6) |
 | `report_builder.py` | HTML 상세 리포트 + 메일 본문 생성 |
 | `mail_sender.py` | SMTP 발송, 리포트 ZIP 첨부 |
-| `demo/generate_demo.py` | 합성 로그로 `docs/` 데모 생성 |
+| `demo/generate_demo.py` | 합성 로그로 `docs/demo/` 데모 생성 |
+| `tools/mask_live.py` | 실제 운영 리포트 마스킹 → `docs/live/` (치환 후 잔존 검사, 하나라도 남으면 실패) |
+| `apps-script/` | 데모 페이지의 "메일로 받아보기" 발송 서버 (사내 주소만, 발송량 제한) |
 
 ## AI 요약의 안전장치
 
@@ -38,6 +40,16 @@ python linux_analyzer.py --auto weekly --no-email      # Linux, 리포트만 생
 ```
 
 스케줄 등록 예시는 `scripts/` (Windows 작업 스케줄러, Linux crontab), Linux 배포 절차는 [README-linux.md](README-linux.md).
+
+## 실제 운영 리포트 공개 (마스킹)
+
+```bash
+# 원본은 repo 밖 폴더에: <폴더>/windows/*.html, <폴더>/linux/Report_EBIZ_*.html, <폴더>/email/windows.eml|html, linux.eml|html
+python tools/mask_live.py ../real-reports --deny 사람이름 서버호스트명
+```
+
+IP는 같은 IP끼리 같은 값으로 치환되므로(사설 → 10.20.x.y, 공인 → 198.18.x.y) 반복 패턴은 유지됩니다.
+원본→치환 대응표는 원본 폴더의 `mask_map.txt`에만 남습니다.
 
 ## 데모 다시 만들기
 

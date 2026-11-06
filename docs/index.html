@@ -38,6 +38,27 @@ iframe{width:100%;height:720px;border:0;border-radius:6px;background:#fff}
 code{background:var(--accent-soft);padding:1px 5px;border-radius:4px;font-size:13px}
 pre{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;font-size:13px}
 footer{margin-top:48px;font-size:13px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--card)}
+.seg button{border:0;background:transparent;color:var(--text);padding:9px 16px;font-size:14px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:700}
+.seg button:disabled{color:var(--muted);cursor:not-allowed}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:6px 0 14px}
+.btn{border:0;background:var(--accent);color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border);font-weight:400}
+.src-note{font-size:14px;color:var(--muted);margin:0 0 12px}
+dialog{border:1px solid var(--border);border-radius:14px;padding:0;background:var(--card);color:var(--text);width:min(440px,calc(100vw - 32px))}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:20px}
+.dlg h3{margin:0 0 4px;font-size:18px}
+.dlg label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
+.dlg input[type=email]{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font-size:15px}
+.dlg .opts{display:flex;gap:8px;flex-wrap:wrap}
+.dlg .opts label{margin:0;display:flex;gap:6px;align-items:center;color:var(--text);font-size:14px;border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer}
+.dlg .actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+.dlg .msg{font-size:14px;margin-top:12px;min-height:1.4em}
+.dlg .msg.ok{color:var(--ok)}.dlg .msg.err{color:#d64545}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 </style>
 </head>
 <body>
@@ -47,8 +68,9 @@ footer{margin-top:48px;font-size:13px;color:var(--muted)}
 <p class="lead">매주 월요일, 서버 5대의 로그 7종을 사람이 직접 열어보던 점검을 <b>메일 한 통</b>으로 바꿨습니다.
 수집·분류·리포트는 스크립트가, “그래서 이번 주 괜찮아?”라는 판단은 Claude가 첫 줄에 써 줍니다.</p>
 
-<div class="notice">이 페이지의 리포트는 <b>합성(가짜) 로그</b>로 만든 데모입니다. 실서버 로그는 한 줄도 포함되어 있지 않고,
-분석·리포트 코드는 운영 중인 코드를 그대로 사용했습니다. (<code>demo/generate_demo.py</code>)</div>
+<div class="notice">리포트는 두 가지로 볼 수 있습니다.
+<b>데모</b>는 합성(가짜) 로그로 만든 것이고, <b>실제 운영</b>은 운영 서버에서 나온 리포트에서 IP·도메인·계정 등 식별 정보를 마스킹한 것입니다.
+두 리포트 모두 운영 중인 분석 코드로 만들었습니다.</div>
 
 <div class="grid">
   <div class="card"><div class="k">운영 대상</div><div class="v">Windows 1대 · Linux 4대</div></div>
@@ -79,21 +101,42 @@ footer{margin-top:48px;font-size:13px;color:var(--muted)}
   </ul></div>
 </div>
 
-<h2>실제 메일 미리보기 <span class="badge" id="ai-badge">AI 요약: 확인 중</span></h2>
-<p style="font-size:14px;color:var(--muted)">데모 시나리오: 10/29(목) 14시, 주문 API의 DB 커넥션 풀이 고갈되어 500 오류가 몰린 한 주. 스캐너 소음 속에서 이걸 찾아내는지 보세요.</p>
-<div class="tabs" role="tablist">
-  <button class="tab" role="tab" aria-selected="true" data-src="email/windows.html">Windows 메일</button>
-  <button class="tab" role="tab" aria-selected="false" data-src="email/linux.html">Linux 메일</button>
+<h2>리포트 메일 미리보기 <span class="badge" id="ai-badge">AI 요약: 확인 중</span></h2>
+<div class="bar">
+  <div class="seg" role="group" aria-label="데이터 출처">
+    <button type="button" data-source="demo" aria-pressed="true">데모 (합성 로그)</button>
+    <button type="button" data-source="live" aria-pressed="false">실제 운영 (마스킹)</button>
+  </div>
+  <button type="button" class="btn" id="open-mail">✉ 메일로 받아보기</button>
 </div>
-<div class="frame"><iframe id="mail" src="email/windows.html" title="메일 미리보기"></iframe></div>
+<p class="src-note" id="src-note"></p>
+<div class="tabs" role="tablist" id="kind-tabs"></div>
+<div class="frame"><iframe id="mail" title="메일 미리보기"></iframe></div>
+<div class="links" id="report-links"></div>
 
-<div class="links">
-  <a href="reports/index_2026W44.html">Windows 상세 리포트 목차</a>
-  <a href="reports/Report_NGINX_2026W44.html">NGINX</a>
-  <a href="reports/Report_TOMCAT_EOUT_2026W44.html">TOMCAT_EOUT</a>
-  <a href="reports/Report_TOMCAT_INOUT_2026W44.html">TOMCAT_INOUT</a>
-  <a href="reports/Report_EBIZ_2026W44.html">Linux 통합 리포트 (L4·노드별)</a>
-</div>
+<dialog id="mail-dialog">
+  <form class="dlg" id="mail-form" method="dialog" novalidate>
+    <h3>메일로 받아보기</h3>
+    <p style="font-size:14px;color:var(--muted);margin:0">실제 운영 메일과 똑같은 HTML 본문 + 상세 리포트 ZIP이 발송됩니다.</p>
+    <label for="mail-to">받을 이메일 (사내 주소만)</label>
+    <input type="email" id="mail-to" name="email" placeholder="name@vntgcorp.com" autocomplete="email" required maxlength="100">
+    <div class="hp" aria-hidden="true"><label>웹사이트<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+    <label>리포트</label>
+    <div class="opts">
+      <label><input type="radio" name="source" value="demo" checked> 데모</label>
+      <label><input type="radio" name="source" value="live"> 실제 운영 (마스킹)</label>
+    </div>
+    <div class="opts" style="margin-top:8px">
+      <label><input type="radio" name="kind" value="windows" checked> Windows</label>
+      <label><input type="radio" name="kind" value="linux"> Linux</label>
+    </div>
+    <div class="msg" id="mail-msg" role="status"></div>
+    <div class="actions">
+      <button type="button" class="btn ghost" id="mail-cancel">닫기</button>
+      <button type="submit" class="btn" id="mail-send">보내기</button>
+    </div>
+  </form>
+</dialog>
 
 <h2>어떻게 동작하나</h2>
 <div class="grid">
@@ -113,26 +156,111 @@ footer{margin-top:48px;font-size:13px;color:var(--muted)}
 
 <h2>직접 돌려보기</h2>
 <pre>git clone https://github.com/silverain1004/log-report-ai.git &amp;&amp; cd log-report-ai
-python demo/generate_demo.py                     # docs/ 에 데모 리포트 생성
+python demo/generate_demo.py                     # docs/demo/ 에 데모 리포트 생성
+python tools/mask_live.py ../real-reports        # 실제 리포트 마스킹 → docs/live/
 ANTHROPIC_API_KEY=sk-ant-... python demo/generate_demo.py --refresh-ai   # Claude로 요약 새로 받기
 python -m pytest tests                           # 테스트</pre>
 
-<footer>AIVE Challenge 2026 하반기 출품작 · 샘플 IP는 문서용 대역(RFC 5737)과 사설 대역만 사용</footer>
+<footer>AIVE Challenge 2026 하반기 출품작 · 데모 IP는 문서용 대역(RFC 5737), 실제 운영 리포트의 IP는 10.20.x.x · 198.18.x.x로 치환</footer>
 </div>
 
 <script>
 (function(){
-  var tabs=document.querySelectorAll('.tab'), frame=document.getElementById('mail');
-  tabs.forEach(function(t){t.addEventListener('click',function(){
-    tabs.forEach(function(x){x.setAttribute('aria-selected','false')});
-    t.setAttribute('aria-selected','true'); frame.src=t.getAttribute('data-src');
-  });});
-  var badge=document.getElementById('ai-badge');
-  fetch('demo_meta.json').then(function(r){return r.json()}).then(function(m){
-    var s=m.ai_source||{}, live=s.windows==='claude'&&s.linux==='claude';
-    badge.textContent=live?'AI 요약: Claude 실제 생성':'AI 요약: 예시 문구';
-    if(live) badge.classList.add('live');
-  }).catch(function(){badge.textContent='AI 요약';});
+  // Google Apps Script 웹 앱 URL (apps-script/README.md 참고). 비어 있으면 발송 버튼은 '준비 중' 안내만 한다.
+  var MAIL_ENDPOINT = '';
+  var ALLOWED_DOMAIN = 'vntgcorp.com';
+
+  var KIND_LABEL = {windows: 'Windows 메일', linux: 'Linux 메일'};
+  var NOTE = {
+    demo: function(m){ return '합성 로그 · ' + (m.period_label||'') + ' · 시나리오: 10/29(목) 14시 DB 커넥션 풀 고갈로 주문 API 500 오류가 몰린 한 주. 스캐너 소음 속에서 이걸 찾아내는지 보세요.'; },
+    live: function(m){ return '실제 운영 서버 · ' + (m.period_label||'') + ' · 건수·추이·분류는 실제 값 그대로, IP·도메인·계정 등 식별 정보만 마스킹했습니다.'; }
+  };
+  var state = {source: 'demo', kind: 'windows', manifests: {}};
+  var $ = function(id){ return document.getElementById(id); };
+  var segBtns = document.querySelectorAll('.seg button');
+
+  function available(src){
+    var m = state.manifests[src]; if (!m) return [];
+    return ['windows','linux'].filter(function(k){ return m[k] && (m[k].email || (m[k].reports||[]).length); });
+  }
+
+  function render(){
+    var m = state.manifests[state.source]; if (!m) return;
+    var kinds = available(state.source);
+    if (kinds.indexOf(state.kind) < 0) state.kind = kinds[0];
+    segBtns.forEach(function(b){ b.setAttribute('aria-pressed', String(b.dataset.source === state.source)); });
+    $('src-note').textContent = NOTE[state.source](m);
+
+    var tabs = $('kind-tabs'); tabs.textContent = '';
+    kinds.forEach(function(k){
+      var b = document.createElement('button');
+      b.className = 'tab'; b.type = 'button'; b.setAttribute('role','tab');
+      b.setAttribute('aria-selected', String(k === state.kind));
+      b.textContent = KIND_LABEL[k];
+      b.onclick = function(){ state.kind = k; render(); };
+      tabs.appendChild(b);
+    });
+
+    var sec = m[state.kind] || {};
+    $('mail').src = state.source + '/' + (sec.email || sec.reports[0].href);  // 메일 원본이 없으면 대표 리포트
+
+    var links = $('report-links'); links.textContent = '';
+    ['windows','linux'].forEach(function(k){
+      ((m[k] && m[k].reports) || []).forEach(function(r){
+        var a = document.createElement('a');
+        a.href = state.source + '/' + r.href; a.textContent = r.title; a.target = '_blank'; a.rel = 'noopener';
+        links.appendChild(a);
+      });
+    });
+
+    var ai = (m.ai_source || {})[state.kind], badge = $('ai-badge');
+    badge.classList.toggle('live', ai === 'claude');
+    badge.textContent = ai === 'claude' ? 'AI 요약: Claude 실제 생성' : ai === 'example' ? 'AI 요약: 예시 문구' : 'AI 요약 없음';
+  }
+
+  segBtns.forEach(function(b){ b.onclick = function(){ if (!b.disabled){ state.source = b.dataset.source; render(); } }; });
+
+  function load(src){
+    return fetch(src + '/manifest.json', {cache: 'no-cache'})
+      .then(function(r){ if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(m){ state.manifests[src] = m; })
+      .catch(function(){
+        var b = document.querySelector('.seg button[data-source="' + src + '"]');
+        b.disabled = true; b.textContent += ' — 준비 중';
+        var radio = document.querySelector('#mail-form input[name=source][value=' + src + ']');
+        if (radio){ radio.disabled = true; radio.parentNode.style.opacity = .5; }
+      });
+  }
+  Promise.all([load('demo'), load('live')]).then(render);
+
+  // --- 메일로 받아보기
+  var dlg = $('mail-dialog'), form = $('mail-form'), msg = $('mail-msg'), send = $('mail-send');
+  function say(text, cls){ msg.textContent = text; msg.className = 'msg' + (cls ? ' ' + cls : ''); }
+  $('open-mail').onclick = function(){
+    form.querySelector('input[name=source][value=' + state.source + ']').checked = true;
+    form.querySelector('input[name=kind][value=' + state.kind + ']').checked = true;
+    say(MAIL_ENDPOINT ? '' : '발송 서버를 연결하는 중이에요. 곧 열립니다.');
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    $('mail-to').focus();
+  };
+  $('mail-cancel').onclick = function(){ dlg.close ? dlg.close() : dlg.removeAttribute('open'); };
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var fd = new FormData(form);
+    var to = String(fd.get('email') || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return say('이메일 주소를 확인해 주세요.', 'err');
+    if (to.split('@')[1] !== ALLOWED_DOMAIN) return say('사내 메일(@' + ALLOWED_DOMAIN + ')로만 받을 수 있어요.', 'err');
+    if (!MAIL_ENDPOINT) return say('발송 서버를 연결하는 중이에요. 곧 열립니다.', 'err');
+    send.disabled = true; say('보내는 중…');
+    fetch(MAIL_ENDPOINT, {
+      method: 'POST',  // Content-Type 헤더를 붙이지 않음 → text/plain 단순 요청 (CORS preflight 없음)
+      body: JSON.stringify({email: to, source: fd.get('source'), kind: fd.get('kind'), website: fd.get('website')})
+    }).then(function(r){ return r.json(); })
+      .then(function(res){ say(res.message, res.ok ? 'ok' : 'err'); })
+      .catch(function(){ say('발송 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.', 'err'); })
+      .then(function(){ send.disabled = false; });
+  });
 })();
 </script>
 </body>
