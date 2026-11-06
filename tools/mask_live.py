@@ -3,6 +3,8 @@
     python tools/mask_live.py <원본 폴더> [--deny 단어 ...]
 
 원본 폴더 구조 (repo 밖에 둘 것 — 원본은 절대 커밋하지 않는다):
+    <원본>/*.eml   Gmail에서 '원본 다운로드'한 리포트 메일 — 본문과 첨부 ZIP을 알아서 풀어 아래 구조로 만든다
+또는 직접:
     <원본>/windows/index_*.html, Report_*.html     Windows 서버 reports/weekly
     <원본>/linux/Report_EBIZ_*.html                 Linux WEB1 reports/weekly
     <원본>/email/windows.(html|eml), linux.(html|eml)   (선택) 실제로 받은 메일
@@ -22,12 +24,14 @@ import argparse
 import email
 import email.policy
 import glob
+import io
 import ipaddress
 import json
 import os
 import re
 import shutil
 import sys
+import zipfile
 from collections import Counter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -171,13 +175,42 @@ def read_email_html(path):
         return f.read()
 
 
+def extract_eml(src):
+    """<원본>/*.eml (Gmail '원본 다운로드') → 본문은 email/<kind>.html, 첨부 ZIP 속 HTML은 <kind>/ 로 풀어 둔다."""
+    for path in sorted(glob.glob(os.path.join(src, "*.eml"))):
+        with open(path, "rb") as f:
+            msg = email.message_from_binary_file(f, policy=email.policy.default)
+        subject = str(msg.get("subject", ""))
+        kind = "linux" if "linux" in subject.lower() else "windows" if "windows" in subject.lower() else None
+        if kind is None:
+            print("   [건너뜀] 제목으로 Windows/Linux를 알 수 없음: %s" % os.path.basename(path))
+            continue
+        body = msg.get_body(preferencelist=("html",))
+        if body is not None:
+            os.makedirs(os.path.join(src, "email"), exist_ok=True)
+            with open(os.path.join(src, "email", kind + ".html"), "w", encoding="utf-8") as f:
+                f.write(body.get_content())
+        for part in msg.iter_attachments():
+            name = part.get_filename() or ""
+            if not name.lower().endswith(".zip"):
+                continue
+            with zipfile.ZipFile(io.BytesIO(part.get_payload(decode=True))) as zf:
+                for info in zf.infolist():
+                    base = os.path.basename(info.filename)
+                    if base.lower().endswith(".html"):
+                        os.makedirs(os.path.join(src, kind), exist_ok=True)
+                        with open(os.path.join(src, kind, base), "wb") as f:
+                            f.write(zf.read(info))
+        print("   [eml] %s → %s" % (os.path.basename(path), kind))
+
+
 def collect(src):
     """(원본 경로, docs/live 상대 경로) 목록"""
+    extract_eml(src)
     items = []
-    for p in sorted(glob.glob(os.path.join(src, "windows", "*.html"))):
-        items.append((p, "reports/" + os.path.basename(p)))
-    for p in sorted(glob.glob(os.path.join(src, "linux", "*.html"))):
-        items.append((p, "reports/" + os.path.basename(p)))
+    for kind in ("windows", "linux"):
+        for p in sorted(glob.glob(os.path.join(src, kind, "*.html"))):
+            items.append((p, "reports/%s/%s" % (kind, os.path.basename(p))))
     for kind in ("windows", "linux"):
         for ext in ("html", "eml"):
             p = os.path.join(src, "email", "%s.%s" % (kind, ext))
@@ -188,9 +221,10 @@ def collect(src):
 
 
 def build_manifest(outputs, texts):
-    win_reports = sorted((o for o in outputs if re.search(r"reports/(index|Report)_(?!EBIZ)", o)),
-                         key=lambda o: (0 if "/index_" in o else 1, o))
-    lin_reports = sorted(o for o in outputs if "reports/Report_EBIZ_" in o)
+    def reports_of(kind):
+        return sorted((o for o in outputs if o.startswith("reports/%s/" % kind)),
+                      key=lambda o: (0 if "/index_" in o else 1, o))
+    win_reports, lin_reports = reports_of("windows"), reports_of("linux")
 
     def period_key(paths):
         keys = re.findall(r"_(\d{4}(?:W\d{2}|\d{2}))\.html", " ".join(paths))
@@ -205,7 +239,7 @@ def build_manifest(outputs, texts):
     def title(href):
         name = os.path.basename(href)
         if name.startswith("index_"):
-            return "Windows 목차"
+            return ("Linux" if "/linux/" in href else "Windows") + " 목차"
         if "EBIZ" in name:
             return "Linux 통합 (L4·노드별)"
         return re.sub(r"^Report_|_\d{4}W?\d+\.html$", "", name)

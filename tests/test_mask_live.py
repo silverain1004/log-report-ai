@@ -49,3 +49,40 @@ def test_extra_deny_words_and_leak_detection():
     out = _mask("operator kimchulsoo restarted WIN-PRODAPP01", deny=["kimchulsoo", "WIN-PRODAPP01"])
     assert "kimchulsoo" not in out and "PRODAPP01" not in out
     assert ml.leaks("10.1.2.3 a@b.com x.seahbesteel.co.kr", []) != []
+
+
+def test_eml_with_zip_is_extracted_and_masked(tmp_path):
+    import io
+    import json
+    import subprocess
+    import zipfile
+    from email.message import EmailMessage
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("Report_EBIZ_2026W44.html",
+                    '<html><body><td>client: 35.191.65.230, host: "vpn.seahbesteel.co.kr"</td></body></html>')
+    msg = EmailMessage()
+    msg["Subject"] = "[로그리포트] Linux 2026년 44주 (2026-10-26 ~ 2026-11-01)"
+    msg.set_content("plain")
+    msg.add_alternative("<html><body>분석 기간: 2026년 44주 (2026-10-26 ~ 2026-11-01) 172.19.34.115</body></html>",
+                        subtype="html")
+    msg.add_attachment(buf.getvalue(), maintype="application", subtype="octet-stream",
+                       filename="Report_Linux_2026W44.zip")
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "linux.eml").write_bytes(bytes(msg))
+    out = tmp_path / "out"
+
+    tool = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "mask_live.py")
+    r = subprocess.run([sys.executable, tool, str(src), "--out", str(out)], stdout=subprocess.PIPE,
+                       stderr=subprocess.STDOUT, env=dict(os.environ, PYTHONIOENCODING="utf-8"))
+    assert r.returncode == 0, r.stdout.decode("utf-8", "replace")
+
+    manifest = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["linux"]["email"] == "email/linux.html"
+    assert manifest["linux"]["reports"][0]["href"] == "reports/linux/Report_EBIZ_2026W44.html"
+    assert manifest["period_label"].startswith("2026년 44주")
+    report = (out / "reports" / "linux" / "Report_EBIZ_2026W44.html").read_text(encoding="utf-8")
+    body = (out / "email" / "linux.html").read_text(encoding="utf-8")
+    assert "seahbesteel" not in report and "35.191" not in report and "172.19" not in body
