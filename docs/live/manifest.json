@@ -1,0 +1,22 @@
+{
+  "source": "live",
+  "label": "실제 운영 (마스킹)",
+  "period_label": "2026년 44주 (2026-10-26 ~ 2026-11-01)",
+  "period_key": "2026W44",
+  "ai_source": {
+    "windows": "missing",
+    "linux": "missing"
+  },
+  "windows": null,
+  "linux": {
+    "title": "E-BIZ 시스템 통합 로그 리포트 (Linux)",
+    "email": null,
+    "zip": "Report_EBIZ_2026W44.zip",
+    "reports": [
+      {
+        "title": "Linux 통합 (L4·노드별)",
+        "href": "reports/linux/Report_EBIZ_2026W44.html"
+      }
+    ]
+  }
+}
