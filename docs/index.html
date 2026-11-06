@@ -58,6 +58,12 @@ footer{margin-top:48px;font-size:13px;color:var(--muted)}
 </div>
 
 <h2>Before / After</h2>
+<div class="grid" style="margin-bottom:12px">
+  <div class="card"><div class="k">주간 점검</div><div class="v">약 55분 → 3분</div><div class="k">메일 한 통 읽기</div></div>
+  <div class="card"><div class="k">월간 리포트 작성</div><div class="v">약 2시간 → 0분</div><div class="k">스케줄러가 자동 발송</div></div>
+  <div class="card"><div class="k">연간 절감</div><div class="v">약 70시간</div><div class="k">주 52분 × 52주 + 월 2시간 × 12</div></div>
+</div>
+<p style="font-size:13px;color:var(--muted);margin-bottom:12px">Before 시간은 단계별 추정치: Windows 원격 접속·로그 3종 확인 15분 + Linux 4대 SSH·grep 20분 + 스캔 소음 걸러내고 장애 판단 10분 + L4 편차 계산·공유 메일 작성 10분.</p>
 <div class="ba">
   <div class="card"><h3>Before — 사람이 직접</h3><ul>
     <li>Windows 서버 원격 접속 → Nginx·Tomcat 로그 폴더 열기</li>
@@ -106,7 +112,7 @@ footer{margin-top:48px;font-size:13px;color:var(--muted)}
 </div>
 
 <h2>직접 돌려보기</h2>
-<pre>git clone &lt;이 저장소&gt; &amp;&amp; cd log-manager
+<pre>git clone https://github.com/silverain1004/log-report-ai.git &amp;&amp; cd log-report-ai
 python demo/generate_demo.py                     # docs/ 에 데모 리포트 생성
 ANTHROPIC_API_KEY=sk-ant-... python demo/generate_demo.py --refresh-ai   # Claude로 요약 새로 받기
 python -m pytest tests                           # 테스트</pre>
