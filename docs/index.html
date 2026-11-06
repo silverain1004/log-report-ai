@@ -105,7 +105,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 <div class="bar">
   <div class="seg" role="group" aria-label="데이터 출처">
     <button type="button" data-source="demo" aria-pressed="true">데모 (합성 로그)</button>
-    <button type="button" data-source="live" aria-pressed="false">실제 운영 (마스킹)</button>
+    <button type="button" data-source="live" aria-pressed="false">실제 주간</button>
+    <button type="button" data-source="live-monthly" aria-pressed="false">실제 월간</button>
   </div>
   <button type="button" class="btn" id="open-mail">✉ 메일로 받아보기</button>
 </div>
@@ -124,7 +125,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <label>리포트</label>
     <div class="opts">
       <label><input type="radio" name="source" value="demo" checked> 데모</label>
-      <label><input type="radio" name="source" value="live"> 실제 운영 (마스킹)</label>
+      <label><input type="radio" name="source" value="live"> 실제 주간</label>
+      <label><input type="radio" name="source" value="live-monthly"> 실제 월간</label>
     </div>
     <div class="opts" style="margin-top:8px">
       <label><input type="radio" name="kind" value="windows" checked> Windows</label>
@@ -172,8 +174,9 @@ python -m pytest tests                           # 테스트</pre>
 
   var KIND_LABEL = {windows: 'Windows 메일', linux: 'Linux 메일'};
   var NOTE = {
+    'live-monthly': function(m){ return NOTE.live(m); },
     demo: function(m){ return '합성 로그 · ' + (m.period_label||'') + ' · 시나리오: 10/29(목) 14시 DB 커넥션 풀 고갈로 주문 API 500 오류가 몰린 한 주. 스캐너 소음 속에서 이걸 찾아내는지 보세요.'; },
-    live: function(m){ return '실제 운영 서버 · ' + (m.period_label||'') + ' · 건수·추이·분류는 실제 값 그대로, IP·도메인·계정 등 식별 정보만 마스킹했습니다.'; }
+    live: function(m){ return '실제 운영 서버 · ' + (m.period_label||'') + ' · 건수·추이·분류는 실제 값 그대로, IP·도메인·계정 등 식별 정보만 마스킹했습니다. 상세 로그 표는 공개본이라 일부만 표시합니다.'; }
   };
   var state = {source: 'demo', kind: 'windows', manifests: {}};
   var $ = function(id){ return document.getElementById(id); };
@@ -231,7 +234,7 @@ python -m pytest tests                           # 테스트</pre>
         if (radio){ radio.disabled = true; radio.parentNode.style.opacity = .5; }
       });
   }
-  Promise.all([load('demo'), load('live')]).then(render);
+  Promise.all([load('demo'), load('live'), load('live-monthly')]).then(render);
 
   // --- 메일로 받아보기
   var dlg = $('mail-dialog'), form = $('mail-form'), msg = $('mail-msg'), send = $('mail-send');

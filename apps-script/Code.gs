@@ -18,9 +18,11 @@ var ALLOWED_DOMAINS = ['vntgcorp.com'];
 var LIMIT_PER_ADDRESS = 3;   // 6시간당 주소별
 var LIMIT_TOTAL = 100;       // 6시간당 전체
 var WINDOW_SEC = 21600;      // CacheService 최대 보관 시간(6시간)
+var LIVE_NOTE = '실제 운영 리포트이며, IP·도메인·계정 등 식별 정보는 마스킹되어 있습니다.';
 var SOURCES = {
   demo: '합성 로그로 만든 데모 리포트입니다.',
-  live: '실제 운영 리포트이며, IP·도메인·계정 등 식별 정보는 마스킹되어 있습니다.'
+  live: LIVE_NOTE,
+  'live-monthly': LIVE_NOTE
 };
 var KINDS = ['windows', 'linux'];
 
@@ -107,7 +109,7 @@ function sendReport_(to, source, kind) {
 
   MailApp.sendEmail({
     to: to,
-    subject: '[로그리포트 ' + (source === 'live' ? '실제' : '데모') + '] ' + report.title +
+    subject: '[로그리포트 ' + (source === 'demo' ? '데모' : '실제') + '] ' + report.title +
       (manifest.period_label ? ' — ' + manifest.period_label : ''),
     htmlBody: html,
     body: '로그 리포트입니다. HTML 메일을 지원하는 메일 앱에서 확인해 주세요. ' + PAGES_BASE,

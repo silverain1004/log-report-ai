@@ -86,3 +86,12 @@ def test_eml_with_zip_is_extracted_and_masked(tmp_path):
     report = (out / "reports" / "linux" / "Report_EBIZ_2026W44.html").read_text(encoding="utf-8")
     body = (out / "email" / "linux.html").read_text(encoding="utf-8")
     assert "seahbesteel" not in report and "35.191" not in report and "172.19" not in body
+
+
+def test_trim_log_rows_keeps_even_sample():
+    rows = "".join("<tr data-keywords='404'><td>%d</td></tr>" % i for i in range(1000))
+    html = '<table class="log-table" id="main-logs"><thead></thead><tbody>%s</tbody></table>' % rows
+    out = ml.trim_log_rows(html, 100)
+    assert out.count("<tr") == 101  # 안내 1줄 + 100줄
+    assert "<td>0</td>" in out and "<td>990</td>" in out and "1,000건" in out
+    assert ml.trim_log_rows(html, 5000) == html

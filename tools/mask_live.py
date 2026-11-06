@@ -3,6 +3,7 @@
     python tools/mask_live.py <원본 폴더> [--deny 단어 ...]
 
 원본 폴더 구조 (repo 밖에 둘 것 — 원본은 절대 커밋하지 않는다):
+    <원본>/*.zip   리포트 메일 첨부 ZIP (Report_Windows_*.zip, Report_Linux_*.zip)
     <원본>/*.eml   Gmail에서 '원본 다운로드'한 리포트 메일 — 본문과 첨부 ZIP을 알아서 풀어 아래 구조로 만든다
 또는 직접:
     <원본>/windows/index_*.html, Report_*.html     Windows 서버 reports/weekly
@@ -204,8 +205,45 @@ def extract_eml(src):
         print("   [eml] %s → %s" % (os.path.basename(path), kind))
 
 
+def extract_zip(src):
+    """<원본>/*.zip (리포트 메일 첨부: Report_Windows_*.zip, Report_Linux_*.zip) → <kind>/ 로 풀어 둔다."""
+    for path in sorted(glob.glob(os.path.join(src, "*.zip"))):
+        low = os.path.basename(path).lower()
+        kind = "linux" if "linux" in low or "ebiz" in low else "windows" if "win" in low else None
+        if kind is None:
+            print("   [건너뜀] 파일명으로 Windows/Linux를 알 수 없음: %s" % os.path.basename(path))
+            continue
+        os.makedirs(os.path.join(src, kind), exist_ok=True)
+        with zipfile.ZipFile(path) as zf:
+            for info in zf.infolist():
+                base = os.path.basename(info.filename)
+                if base.lower().endswith(".html"):
+                    with open(os.path.join(src, kind, base), "wb") as f:
+                        f.write(zf.read(info))
+        print("   [zip] %s → %s" % (os.path.basename(path), kind))
+
+
+LOG_TBODY_RE = re.compile(r'(<table class="log-table"[^>]*>.*?<tbody>)(.*?)(</tbody>)', re.S)
+ROW_RE = re.compile(r"<tr[\s>].*?</tr>", re.S)
+
+
+def trim_log_rows(text, max_rows):
+    """상세 로그 표를 기간 전체에서 고르게 max_rows 줄만 남긴다. 집계·차트·Top N 은 그대로."""
+    def _trim(m):
+        rows = ROW_RE.findall(m.group(2))
+        if len(rows) <= max_rows:
+            return m.group(0)
+        step = len(rows) / float(max_rows)
+        kept = [rows[int(i * step)] for i in range(max_rows)]
+        note = ("<tr><td colspan='7' style='text-align:center;color:#888'>공개본: 전체 %s건 중 기간 전체에서 고르게 %d건만 표시 "
+                "(집계·차트·Top N은 전체 기준)</td></tr>" % (format(len(rows), ","), max_rows))
+        return m.group(1) + note + "".join(kept) + m.group(3)
+    return LOG_TBODY_RE.sub(_trim, text)
+
+
 def collect(src):
     """(원본 경로, docs/live 상대 경로) 목록"""
+    extract_zip(src)
     extract_eml(src)
     items = []
     for kind in ("windows", "linux"):
@@ -275,6 +313,7 @@ def main():
     ap.add_argument("src", help="원본 리포트 폴더 (repo 밖)")
     ap.add_argument("--deny", nargs="*", default=[], help="추가로 가릴 단어 (사람 이름, 서버 호스트명 등)")
     ap.add_argument("--out", default=OUT_DIR)
+    ap.add_argument("--max-log-rows", type=int, default=300, help="상세 로그 표에 남길 최대 줄 수 (기본 300)")
     args = ap.parse_args()
 
     src = os.path.abspath(args.src)
@@ -288,7 +327,7 @@ def main():
     texts, problems = {}, []
     for path, rel in items:
         raw = read_email_html(path) if rel.startswith("email/") else open(path, encoding="utf-8", errors="replace").read()
-        masked = masker.mask(raw)
+        masked = masker.mask(trim_log_rows(raw, args.max_log_rows))
         texts[rel] = masked
         for kind, val in leaks(masked, args.deny):
             problems.append((rel, kind, val))
