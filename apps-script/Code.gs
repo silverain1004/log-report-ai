@@ -25,35 +25,49 @@ var SOURCES = {
 var KINDS = ['windows', 'linux'];
 
 function doPost(e) {
+  // 두 가지 호출 방식을 모두 받는다.
+  //  1) fetch(text/plain JSON)  — 배포 액세스가 '모든 사용자'일 때 페이지 안에서 바로 발송
+  //  2) 폼 POST(새 탭)          — 액세스가 '도메인 내 사용자'로 제한된 경우. 새 탭에는 회사 구글 로그인이 실림
+  var isForm = !!(e && e.parameter && e.parameter.email);
   var req;
-  try {
-    req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-  } catch (err) {
-    return reply_(false, '요청 형식이 올바르지 않아요.');
+  if (isForm) {
+    req = e.parameter;
+  } else {
+    try {
+      req = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    } catch (err) {
+      return reply_(false, '요청 형식이 올바르지 않아요.');
+    }
   }
-  if (req.website) return reply_(true, '발송했어요.'); // 허니팟: 봇에게는 성공처럼 보이게
+  var res = handle_(req);
+  return isForm ? page_(res.ok, res.message) : reply_(res.ok, res.message);
+}
+
+function handle_(req) {
+  if (req.probe) return result_(true, 'ok'); // 페이지가 배포 액세스 방식을 확인하는 요청 (발송 없음)
+  if (req.website) return result_(true, '발송했어요.'); // 허니팟: 봇에게는 성공처럼 보이게
 
   var email = String(req.email || '').trim().toLowerCase();
   var source = SOURCES.hasOwnProperty(req.source) ? req.source : 'demo';
   var kind = KINDS.indexOf(req.kind) >= 0 ? req.kind : 'windows';
   if (email.length > 100 || !/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email)) {
-    return reply_(false, '이메일 주소를 확인해 주세요.');
+    return result_(false, '이메일 주소를 확인해 주세요.');
   }
   var domain = email.split('@')[1];
   if (ALLOWED_DOMAINS.length && ALLOWED_DOMAINS.indexOf(domain) < 0) {
-    return reply_(false, '사내 메일(@' + ALLOWED_DOMAINS.join(', @') + ')로만 받을 수 있어요.');
+    return result_(false, '사내 메일(@' + ALLOWED_DOMAINS.join(', @') + ')로만 받을 수 있어요.');
   }
 
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(10000)) return reply_(false, '잠시 후 다시 시도해 주세요.');
+  if (!lock.tryLock(10000)) return result_(false, '잠시 후 다시 시도해 주세요.');
   try {
     var cache = CacheService.getScriptCache();
     var addrKey = 'a:' + Utilities.base64EncodeWebSafe(
       Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, email));
     var mine = Number(cache.get(addrKey) || 0);
     var total = Number(cache.get('total') || 0);
-    if (mine >= LIMIT_PER_ADDRESS) return reply_(false, '이 주소로는 이미 여러 번 보냈어요. 몇 시간 뒤에 다시 시도해 주세요.');
-    if (total >= LIMIT_TOTAL) return reply_(false, '발송 한도를 넘었어요. 나중에 다시 시도해 주세요.');
+    if (mine >= LIMIT_PER_ADDRESS) return result_(false, '이 주소로는 이미 여러 번 보냈어요. 몇 시간 뒤에 다시 시도해 주세요.');
+    if (total >= LIMIT_TOTAL) return result_(false, '발송 한도를 넘었어요. 나중에 다시 시도해 주세요.');
 
     sendReport_(email, source, kind);
 
@@ -61,11 +75,11 @@ function doPost(e) {
     cache.put('total', String(total + 1), WINDOW_SEC);
   } catch (err) {
     console.error(err);
-    return reply_(false, err.userMessage || '발송 중 오류가 났어요. 잠시 후 다시 시도해 주세요.');
+    return result_(false, err.userMessage || '발송 중 오류가 났어요. 잠시 후 다시 시도해 주세요.');
   } finally {
     lock.releaseLock();
   }
-  return reply_(true, email + ' 로 보냈어요. 1~2분 안에 도착해요.');
+  return result_(true, email + ' 로 보냈어요. 1~2분 안에 도착해요.');
 }
 
 function sendReport_(to, source, kind) {
@@ -110,6 +124,29 @@ function fetch_(url) {
     throw err;
   }
   return res;
+}
+
+function result_(ok, message) {
+  return { ok: ok, message: message };
+}
+
+function page_(ok, message) {
+  var color = ok ? '#1e8e5a' : '#d64545';
+  var html = '<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8">' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1"><title>메일로 받아보기</title></head>' +
+    '<body style="margin:0;font-family:Segoe UI,Malgun Gothic,Arial,sans-serif;background:#f6f7f9;color:#1d2330">' +
+    '<div style="max-width:440px;margin:80px auto;padding:24px;background:#fff;border:1px solid #e2e6ec;border-radius:14px">' +
+    '<div style="font-size:18px;font-weight:700;margin-bottom:8px">로그 대신 읽어드림</div>' +
+    '<div style="font-size:15px;color:' + color + '">' + escape_(message) + '</div>' +
+    '<div style="margin-top:18px;font-size:13px"><a href="' + PAGES_BASE + '">← 데모 페이지로 돌아가기</a> · 이 탭은 닫아도 돼요.</div>' +
+    '</div></body></html>';
+  return HtmlService.createHtmlOutput(html).setTitle('메일로 받아보기');
+}
+
+function escape_(t) {
+  return String(t).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
 }
 
 function reply_(ok, message) {

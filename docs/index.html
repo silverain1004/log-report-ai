@@ -167,7 +167,7 @@ python -m pytest tests                           # 테스트</pre>
 <script>
 (function(){
   // Google Apps Script 웹 앱 URL (apps-script/README.md 참고). 비어 있으면 발송 버튼은 '준비 중' 안내만 한다.
-  var MAIL_ENDPOINT = '';
+  var MAIL_ENDPOINT = 'https://script.google.com/a/macros/vntgcorp.com/s/AKfycbwRoXw2rW_LGw6AywT-fGd53JEk1L9oWL-6GERTML2LgHxwAKcEMtpgAyD1Prryr3UQ/exec';
   var ALLOWED_DOMAIN = 'vntgcorp.com';
 
   var KIND_LABEL = {windows: 'Windows 메일', linux: 'Linux 메일'};
@@ -252,15 +252,37 @@ python -m pytest tests                           # 테스트</pre>
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return say('이메일 주소를 확인해 주세요.', 'err');
     if (to.split('@')[1] !== ALLOWED_DOMAIN) return say('사내 메일(@' + ALLOWED_DOMAIN + ')로만 받을 수 있어요.', 'err');
     if (!MAIL_ENDPOINT) return say('발송 서버를 연결하는 중이에요. 곧 열립니다.', 'err');
+    var payload = {email: to, source: fd.get('source'), kind: fd.get('kind'), website: fd.get('website') || ''};
+
+    if (mode === 'tab') {
+      // 사내 전용 배포: 새 탭으로 폼 POST → 회사 구글 로그인이 실린 상태로 발송, 결과는 그 탭에 표시
+      var f = document.createElement('form');
+      f.method = 'POST'; f.action = MAIL_ENDPOINT; f.target = '_blank'; f.style.display = 'none';
+      Object.keys(payload).forEach(function(k){
+        var i = document.createElement('input'); i.type = 'hidden'; i.name = k; i.value = payload[k]; f.appendChild(i);
+      });
+      document.body.appendChild(f); f.submit(); f.remove();
+      return say('새 탭에서 발송 결과를 확인해 주세요. (회사 구글 계정 로그인 필요)', 'ok');
+    }
+
     send.disabled = true; say('보내는 중…');
     fetch(MAIL_ENDPOINT, {
       method: 'POST',  // Content-Type 헤더를 붙이지 않음 → text/plain 단순 요청 (CORS preflight 없음)
-      body: JSON.stringify({email: to, source: fd.get('source'), kind: fd.get('kind'), website: fd.get('website')})
+      body: JSON.stringify(payload)
     }).then(function(r){ return r.json(); })
       .then(function(res){ say(res.message, res.ok ? 'ok' : 'err'); })
-      .catch(function(){ say('발송 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.', 'err'); })
+      .catch(function(){ mode = 'tab'; say('연결 방식을 바꿨어요. [보내기]를 한 번 더 눌러 주세요.', 'err'); })
       .then(function(){ send.disabled = false; });
   });
+
+  // 배포 액세스 확인: 로그인 없이 호출되면 페이지 안에서 발송(inline), 막혀 있으면 새 탭 방식(tab)
+  var mode = 'inline';
+  if (MAIL_ENDPOINT) {
+    fetch(MAIL_ENDPOINT, {method: 'POST', body: JSON.stringify({probe: true})})
+      .then(function(r){ return r.json(); })
+      .then(function(res){ mode = res && res.ok ? 'inline' : 'tab'; })
+      .catch(function(){ mode = 'tab'; });
+  }
 })();
 </script>
 </body>
